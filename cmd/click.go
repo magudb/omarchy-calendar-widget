@@ -93,7 +93,7 @@ func runClickWithForceRefresh() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	calendarService, err := calendar.NewCalendarServiceWithRefresh(true, true) // Interactive + force refresh
+	calendarService, err := calendar.NewCalendarServiceWithOptions(true) // Allow interactive auth
 	if err != nil {
 		fmt.Printf("Force refresh failed: %v\n", err)
 		return runReauth()

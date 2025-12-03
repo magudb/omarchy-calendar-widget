@@ -40,14 +40,9 @@ func NewCalendarService() (*CalendarService, error) {
 }
 
 func NewCalendarServiceWithOptions(allowInteractive bool) (*CalendarService, error) {
-	return NewCalendarServiceWithRefresh(allowInteractive, false)
-}
-
-func NewCalendarServiceWithRefresh(allowInteractive bool, forceRefresh bool) (*CalendarService, error) {
 	// Create a custom credential that respects interactive mode
 	credential := &nonInteractiveCredential{
 		allowInteractive: allowInteractive,
-		forceRefresh:     forceRefresh,
 	}
 
 	authProvider, err := authentication.NewAzureIdentityAuthenticationProviderWithScopes(credential, []string{
@@ -71,11 +66,10 @@ func NewCalendarServiceWithRefresh(allowInteractive bool, forceRefresh bool) (*C
 // nonInteractiveCredential wraps the authentication to control interactive behavior
 type nonInteractiveCredential struct {
 	allowInteractive bool
-	forceRefresh     bool
 }
 
 func (nic *nonInteractiveCredential) GetToken(ctx context.Context, options policy.TokenRequestOptions) (azcore.AccessToken, error) {
-	return auth.GetAccessTokenWithOptionsAndForceRefresh(ctx, nic.allowInteractive, nic.forceRefresh)
+	return auth.GetAccessToken(ctx, nic.allowInteractive)
 }
 
 func (cs *CalendarService) GetTodaysEvents(ctx context.Context) ([]Event, error) {

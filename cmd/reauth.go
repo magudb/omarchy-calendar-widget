@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"calendar-widget/internal/auth"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/spf13/cobra"
 )
@@ -21,12 +21,11 @@ var reauthCmd = &cobra.Command{
 }
 
 func runReauth() error {
-	// Clear existing tokens
-	if err := auth.ClearTokens(); err != nil {
-		fmt.Printf("Warning: failed to clear tokens: %v\n", err)
-	}
+	// Try to clear the keyring cache (Linux-specific)
+	cmd := exec.Command("secret-tool", "clear", "service", "calendar-widget")
+	_ = cmd.Run() // Ignore errors - keyring may not be available
 
-	fmt.Println("🔄 Re-authenticating...")
+	fmt.Println("Re-authenticating...")
 	fmt.Println("Starting fresh authentication process...")
 
 	// Run setup again

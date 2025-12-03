@@ -45,7 +45,7 @@ func runValidate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	_, err = auth.GetAccessToken(ctx)
+	_, err = auth.GetAccessToken(ctx, true) // Allow interactive for validation
 	if err != nil {
 		fmt.Println("❌ Authentication failed:")
 		fmt.Printf("   Error: %v\n", err)

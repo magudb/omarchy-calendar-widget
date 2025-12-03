@@ -92,11 +92,11 @@ func (w *Widget) RunWaybarWithRefresh(forceRefresh bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Use service with force refresh if requested
+	// Use service with interactive auth if force refresh requested
 	service := w.calendarService
 	if forceRefresh {
-		// Create a new service with force refresh enabled
-		refreshService, err := calendar.NewCalendarServiceWithRefresh(true, true)
+		// Create a new service with interactive auth enabled
+		refreshService, err := calendar.NewCalendarServiceWithOptions(true)
 		if err != nil {
 			output := WaybarOutput{
 				Text:    "Auth Error",

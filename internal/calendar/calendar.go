@@ -3,7 +3,6 @@ package calendar
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -72,28 +71,32 @@ func (nic *nonInteractiveCredential) GetToken(ctx context.Context, options polic
 	return auth.GetAccessToken(ctx, nic.allowInteractive)
 }
 
+const graphTimeFormat = "2006-01-02T15:04:05.000Z"
+
+func startOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
 func (cs *CalendarService) GetTodaysEvents(ctx context.Context) ([]Event, error) {
-	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endOfDay := startOfDay.Add(24 * time.Hour)
-
-	// Use CalendarView with proper date range
-	startStr := startOfDay.UTC().Format("2006-01-02T15:04:05.000Z")
-	endStr := endOfDay.UTC().Format("2006-01-02T15:04:05.000Z")
-
-	return cs.getEventsWithCalendarView(ctx, startStr, endStr)
+	start := startOfDay(time.Now())
+	end := start.Add(24 * time.Hour)
+	return cs.getEventsWithCalendarView(ctx, start.UTC().Format(graphTimeFormat), end.UTC().Format(graphTimeFormat))
 }
 
 func (cs *CalendarService) GetUpcomingEvents(ctx context.Context) ([]Event, error) {
 	now := time.Now()
-	// Get events from now until 7 days from now
-	endTime := now.Add(7 * 24 * time.Hour)
+	end := now.Add(7 * 24 * time.Hour)
+	return cs.getEventsWithCalendarView(ctx, now.UTC().Format(graphTimeFormat), end.UTC().Format(graphTimeFormat))
+}
 
-	// Use CalendarView with proper date range
-	nowStr := now.UTC().Format("2006-01-02T15:04:05.000Z")
-	endStr := endTime.UTC().Format("2006-01-02T15:04:05.000Z")
-
-	return cs.getEventsWithCalendarView(ctx, nowStr, endStr)
+// GetEventsFromTodayThroughWeek returns every event from start-of-today to 7 days
+// from now in a single Graph API call. Callers can partition the result locally
+// into "today" and "upcoming" buckets to avoid two round trips.
+func (cs *CalendarService) GetEventsFromTodayThroughWeek(ctx context.Context) ([]Event, error) {
+	now := time.Now()
+	start := startOfDay(now)
+	end := now.Add(7 * 24 * time.Hour)
+	return cs.getEventsWithCalendarView(ctx, start.UTC().Format(graphTimeFormat), end.UTC().Format(graphTimeFormat))
 }
 
 func (cs *CalendarService) getEventsWithCalendarView(ctx context.Context, startDateTime, endDateTime string) ([]Event, error) {
@@ -174,49 +177,38 @@ func (cs *CalendarService) GetNextMeeting(ctx context.Context) (*Event, error) {
 	return nil, nil
 }
 
-func extractTeamsLink(body, location string) (string, bool) {
-	// Multiple Teams URL patterns to look for
-	teamsPatterns := []string{
-		`https://teams\.microsoft\.com/l/meetup-join/[^\s<>"']+`,
-		`https://teams\.live\.com/meet/[^\s<>"']+`,
-		`https://[a-zA-Z0-9-]+\.teams\.microsoft\.com/[^\s<>"']+`,
+var (
+	teamsURLRegexes = []*regexp.Regexp{
+		regexp.MustCompile(`https://teams\.microsoft\.com/l/meetup-join/[^\s<>"']+`),
+		regexp.MustCompile(`https://teams\.live\.com/meet/[^\s<>"']+`),
+		regexp.MustCompile(`https://[a-zA-Z0-9-]+\.teams\.microsoft\.com/[^\s<>"']+`),
 	}
 
+	// Lower-cased Teams meeting indicators (English + Danish).
+	teamsIndicatorsLower = []string{
+		"microsoft teams meeting",
+		"teams meeting",
+		"join microsoft teams meeting",
+		"microsoft teams-møde",
+		"teams-møde",
+	}
+)
+
+func extractTeamsLink(body, location string) (string, bool) {
 	content := body + " " + location
 
-	// Try each Teams URL pattern
-	for _, pattern := range teamsPatterns {
-		teamsRegex := regexp.MustCompile(pattern)
-		if match := teamsRegex.FindString(content); match != "" {
-			// Clean up the URL (remove trailing punctuation)
-			cleanURL := strings.TrimRight(match, ".,:;!?")
-			return cleanURL, true
+	for _, re := range teamsURLRegexes {
+		if match := re.FindString(content); match != "" {
+			return strings.TrimRight(match, ".,:;!?"), true
 		}
 	}
 
-	// Look for Teams meeting indicators
-	teamsIndicators := []string{
-		"Microsoft Teams Meeting",
-		"Teams Meeting",
-		"Join Microsoft Teams Meeting",
-		"Microsoft Teams-møde", // Danish
-		"Teams-møde",           // Danish
-	}
-
+	// A Teams indicator phrase with no recognizable Teams URL: flag as Teams
+	// but don't return an arbitrary URL from the body — it could point anywhere
+	// (event bodies can be attacker-controlled via meeting invites).
 	contentLower := strings.ToLower(content)
-
-	for _, indicator := range teamsIndicators {
-		if strings.Contains(contentLower, strings.ToLower(indicator)) {
-			// Extract any HTTPS URL from the content
-			urlRegex := regexp.MustCompile(`https://[^\s<>"']+`)
-			matches := urlRegex.FindAllString(content, -1)
-			for _, match := range matches {
-				cleanURL := strings.TrimRight(match, ".,:;!?")
-				if u, err := url.Parse(cleanURL); err == nil && u.Host != "" {
-					return cleanURL, true
-				}
-			}
-			// Found Teams indicator but no usable URL
+	for _, indicator := range teamsIndicatorsLower {
+		if strings.Contains(contentLower, indicator) {
 			return "", true
 		}
 	}
@@ -293,6 +285,25 @@ func (e *Event) GetStatus() string {
 		return "soon"
 	}
 	return "upcoming"
+}
+
+// StatusEmoji returns the indicator emoji matching the event's current status.
+// Kept on Event so callers across the widget package agree on the mapping.
+func (e *Event) StatusEmoji() string {
+	switch e.GetStatus() {
+	case "current":
+		return "🟢"
+	case "urgent":
+		return "🔴"
+	case "soon":
+		return "🟡"
+	case "upcoming":
+		return "🔵"
+	case "past":
+		return "⚫"
+	default:
+		return "📅"
+	}
 }
 
 func (e *Event) GetDuration() time.Duration {

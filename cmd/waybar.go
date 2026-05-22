@@ -23,11 +23,12 @@ var waybarCmd = &cobra.Command{
 }
 
 func runWaybar() error {
+	// Waybar polls on its own configured interval and we exit after one print,
+	// so RefreshInterval is intentionally unused here.
 	w, err := widget.NewWidgetWithOptions(&widget.Config{
-		RefreshInterval: refresh,
-		Compact:         true,
-		Debug:           debug,
-	}, forceRefresh) // Allow interactive authentication if force refresh is requested
+		Compact: true,
+		Debug:   debug,
+	}, forceRefresh) // forceRefresh enables interactive browser auth for this run
 	if err != nil {
 		return fmt.Errorf("failed to create widget: %w", err)
 	}
@@ -36,7 +37,6 @@ func runWaybar() error {
 }
 
 func init() {
-	waybarCmd.Flags().IntVar(&refresh, "refresh", 60, "refresh interval in seconds")
-	waybarCmd.Flags().BoolVar(&forceRefresh, "force-refresh", false, "force token refresh on this run")
+	waybarCmd.Flags().BoolVar(&forceRefresh, "force-refresh", false, "allow interactive browser sign-in on this run")
 	rootCmd.AddCommand(waybarCmd)
 }

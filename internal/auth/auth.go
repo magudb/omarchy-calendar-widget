@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,11 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity/cache"
 )
+
+// ErrLoginRequired is returned (wrapped) when an interactive sign-in is needed
+// but couldn't be performed — e.g. no cached token and interactive auth disabled,
+// or the cached refresh token has expired. Callers should use errors.Is to detect.
+var ErrLoginRequired = errors.New("login required")
 
 const (
 	// Common tenant allows personal and work accounts
@@ -183,7 +189,7 @@ func GetAccessToken(ctx context.Context, allowInteractive bool) (azcore.AccessTo
 			Scopes: Scopes,
 		})
 		if err != nil {
-			return azcore.AccessToken{}, fmt.Errorf("failed to authenticate: %w", err)
+			return azcore.AccessToken{}, fmt.Errorf("failed to authenticate: %w", wrapLoginRequired(err))
 		}
 		_ = saveAuthRecord(record)
 	}
@@ -192,8 +198,22 @@ func GetAccessToken(ctx context.Context, allowInteractive bool) (azcore.AccessTo
 		Scopes: Scopes,
 	})
 	if err != nil {
-		return azcore.AccessToken{}, fmt.Errorf("failed to get access token: %w", err)
+		return azcore.AccessToken{}, fmt.Errorf("failed to get access token: %w", wrapLoginRequired(err))
 	}
 
 	return token, nil
+}
+
+// wrapLoginRequired tags errors that mean "user needs to sign in again" with
+// ErrLoginRequired so callers can match via errors.Is without substring matching
+// the SDK's error text (which varies by locale and SDK version).
+func wrapLoginRequired(err error) error {
+	if err == nil {
+		return nil
+	}
+	var authRequired *azidentity.AuthenticationRequiredError
+	if errors.As(err, &authRequired) {
+		return fmt.Errorf("%w: %v", ErrLoginRequired, err)
+	}
+	return err
 }

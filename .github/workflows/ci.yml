@@ -47,6 +47,14 @@ jobs:
     - name: Vet
       run: go vet ./...
 
+    - name: Check root manifest is in sync
+      run: |
+        if ! diff -u quickshell/manifest.json manifest.json; then
+          echo "Root manifest.json is out of sync with quickshell/manifest.json."
+          echo "Run 'make manifest' and commit the result."
+          exit 1
+        fi
+
     - name: Test
       run: go test -v ./...
 

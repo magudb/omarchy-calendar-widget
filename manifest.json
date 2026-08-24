@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "id": "magudb.calendar",
+  "name": "Calendar Widget",
+  "version": "0.1.0",
+  "author": "magudb",
+  "description": "Microsoft 365 calendar pill for the Omarchy bar: next meeting with urgency colors, today's schedule on hover, click to join",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "quickshell/Widget.qml"
+  },
+  "barWidget": {
+    "displayName": "Calendar",
+    "description": "Next Microsoft 365 meeting with urgency colors; click to join",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "interval": 60
+    },
+    "schema": [
+      {
+        "key": "interval",
+        "type": "number",
+        "label": "Poll interval (seconds)"
+      },
+      {
+        "key": "binary",
+        "type": "string",
+        "label": "calendar-widget binary"
+      },
+      {
+        "key": "onClick",
+        "type": "string",
+        "label": "Command to run on left click"
+      }
+    ]
+  }
+}

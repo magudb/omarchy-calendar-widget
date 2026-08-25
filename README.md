@@ -23,7 +23,7 @@ A Go-based calendar widget for **waybar** and the **Omarchy 4** status bar (Quic
 ### Build from source
 
 ```bash
-git clone https://github.com/magudb/waybar-calendar.git
+git clone https://github.com/magudb/omarchy-calendar-widget.git
 cd calendar-widget
 go build -o calendar-widget
 sudo cp calendar-widget /usr/local/bin/
@@ -182,7 +182,7 @@ if either tool is not in your PATH).
 Or straight from git, without the CLI:
 
 ```bash
-omarchy plugin add https://github.com/magudb/waybar-calendar.git --enable --yes
+omarchy plugin add https://github.com/magudb/omarchy-calendar-widget.git --enable --yes
 ```
 
 ### Omarchy Colors

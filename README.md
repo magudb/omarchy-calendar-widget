@@ -1,9 +1,10 @@
-# Calendar Widget for Waybar
+# Calendar Widget for Waybar & Omarchy
 
-A Go-based calendar widget for waybar that displays your Microsoft 365 calendar with visual indicators and click-to-join functionality for Teams meetings.
+A Go-based calendar widget for **waybar** and the **Omarchy 4** status bar (Quickshell) that displays your Microsoft 365 calendar with visual indicators and click-to-join functionality for Teams meetings.
 
 ## Features
 
+- 🏠 **Omarchy 4 / Quickshell**: One-command install for the omarchy-shell bar (QML widget or plugin)
 - 🔴 **Smart Visual Indicators**: Shows current, urgent (≤5min), soon (≤15min), upcoming, and past meetings
 - 📅 **Microsoft 365 Integration**: Full calendar access using Microsoft Graph CalendarView API
 - 🔗 **Teams Meeting Support**: Direct Teams app integration with automatic Teams link detection
@@ -17,7 +18,7 @@ A Go-based calendar widget for waybar that displays your Microsoft 365 calendar 
 ### Prerequisites
 
 - Go 1.24 or later
-- Linux with waybar and a web browser
+- Linux with waybar or Omarchy 4, and a web browser
 
 ### Build from source
 
@@ -136,6 +137,82 @@ Add to your waybar CSS (`~/.config/waybar/style.css`):
 }
 ```
 
+## Omarchy 4 (Quickshell) Configuration
+
+Omarchy 4 drops waybar: its status bar is a Quickshell panel (`omarchy-shell`).
+This widget ships a QML bar module that speaks the same JSON contract as waybar
+mode, so everything (auth, tooltips, click handling) works unchanged.
+
+### One-Command Install
+
+```bash
+calendar-widget omarchy
+```
+
+This:
+1. Copies the widget to `~/.config/omarchy/bar/modules/calendar.qml`
+2. Adds `{"id":"calendar","type":"qml","interval":60,"binary":"calendar-widget"}`
+   to your bar layout in `~/.config/omarchy/shell.json` (the previous file is
+   backed up to `shell.json.bak`; if no `shell.json` exists yet, one is seeded
+   from the stock Omarchy defaults)
+3. The bar watches `shell.json` and picks the widget up automatically (if not:
+   `omarchy-shell shell reloadConfig`)
+
+The widget appears in the **right** section by default. Options:
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--section` | `right` | Bar layout section: `left`, `center`, `right` |
+| `--interval` | `60` | Poll interval in seconds |
+| `--binary` | `calendar-widget` | Executable to poll; falls back to this binary's own path if not in PATH |
+| `--plugin` | off | Install as a bar-widget plugin instead of a QML module |
+
+### Plugin Install
+
+```bash
+calendar-widget omarchy --plugin
+```
+
+Writes the plugin (`manifest.json` + QML) to
+`~/.config/omarchy/plugins/magudb.calendar` and then tries, best-effort, to
+run `omarchy-shell shell rescanPlugins` and
+`omarchy plugin enable magudb.calendar` (it tells you what to re-run manually
+if either tool is not in your PATH).
+
+Or straight from git, without the CLI:
+
+```bash
+omarchy plugin add https://github.com/magudb/waybar-calendar.git --enable --yes
+```
+
+### Omarchy Colors
+
+| Status | Color |
+|--------|-------|
+| 🟢 Current | `#3ddc84` (pulsing) |
+| 🔴 Urgent | `#ff453a` (pulsing) |
+| 🟡 Soon | `#ffcc00` |
+| 🔵 Upcoming | `#4488ff` |
+| ⚫ Past | `#8e8e93` |
+| ⚠️ Error | `#ff453a` |
+
+### Behavior
+
+- **Left click** → `calendar-widget click` (same smart click handling as
+  waybar: join current/urgent meeting, or re-authenticate if needed)
+- **Right click** → force a refresh of the data right now
+- **Hover** → today's full schedule + upcoming events (multi-line tooltip)
+- Before the first successful poll the widget is hidden (zero width)
+
+### Uninstall
+
+```bash
+calendar-widget omarchy uninstall
+# or, for a plugin install:
+calendar-widget omarchy --plugin uninstall
+omarchy plugin remove magudb.calendar   # only for git-installed plugins
+```
+
 ## Usage
 
 ### Available Commands
@@ -152,6 +229,10 @@ calendar-widget click
 
 # Show detailed tooltip (called by waybar exec-tooltip)
 calendar-widget tooltip
+
+# Install/uninstall for the Omarchy 4 (Quickshell) bar
+calendar-widget omarchy
+calendar-widget omarchy uninstall
 
 # Run interactive widget (TUI interface)
 calendar-widget widget
@@ -274,6 +355,37 @@ calendar-widget logout && calendar-widget setup
 go build -o calendar-widget
 ```
 
+### CI & Packaging
+
+- **CI** (`.github/workflows/ci.yml`) runs on pushes/PRs to `master`:
+  - `lint` — `gofmt -s` check, `golangci-lint`, `go vet`
+  - `test` — root/quickshell manifest sync check, `go test -race`, build,
+    and a self-containment check that the binary embeds the QML widget
+    and plugin manifest (so a bare release binary is enough for
+    `calendar-widget omarchy`)
+- **Releases** (`.github/workflows/release.yml`, GoReleaser): tag and push
+  to publish a release — no need to create anything in the GitHub UI:
+
+  ```bash
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+
+  This produces a GitHub release with `calendar-widget_<ver>_<os>_<arch>.tar.gz`
+  for linux/darwin/windows (amd64, arm64). Each archive contains the
+  self-contained binary **plus** `manifest.json` and `quickshell/` so the
+  Omarchy plugin can be installed from the release without a git checkout:
+
+  ```bash
+  tar -xzf calendar-widget_0.1.0_linux_arm64.tar.gz
+  cd calendar-widget_0.1.0_linux_arm64
+  # install the binary, then either:
+  ./calendar-widget omarchy                  # QML module install
+  # or, manual plugin install:
+  mkdir -p ~/.config/omarchy/plugins/magudb.calendar
+  cp manifest.json quickshell ~/.config/omarchy/plugins/magudb.calendar/
+  ```
+
 ### Key Dependencies
 
 - **[Microsoft Graph SDK Go](https://github.com/microsoftgraph/msgraph-sdk-go)** - Microsoft 365 API access
@@ -291,11 +403,18 @@ calendar-widget/
 │   ├── setup.go           # Authentication setup
 │   ├── waybar.go          # Waybar integration
 │   ├── click.go           # Smart click handler
+│   ├── omarchy.go         # Omarchy 4 (Quickshell) install/uninstall
 │   └── ...
 ├── internal/
 │   ├── auth/              # Authentication logic
 │   ├── calendar/          # Microsoft Graph API
-│   └── widget/            # UI components
+│   ├── widget/            # UI components
+│   └── omarchy/           # shell.json surgery + plugin layout
+├── quickshell/            # QML bar widget + plugin manifest (embedded)
+│   ├── Widget.qml
+│   ├── main.qml           # standalone quickshell -p test harness
+│   └── manifest.json
+├── manifest.json          # root copy for `omarchy plugin add <repo>` (synced by `make manifest`)
 └── main.go
 ```
 

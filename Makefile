@@ -17,7 +17,7 @@ GOMOD=$(GOCMD) mod
 VERSION=$(shell git describe --tags --always --dirty)
 LDFLAGS=-ldflags "-X main.Version=$(VERSION)"
 
-.PHONY: build clean test install uninstall deps tidy help
+.PHONY: build clean test install uninstall deps tidy manifest help
 
 # Default target
 all: build
@@ -61,6 +61,12 @@ deps:
 tidy:
 	$(GOMOD) tidy
 
+# Sync the root manifest.json (for `omarchy plugin add <repo-url>`)
+# with the canonical quickshell/manifest.json.
+manifest:
+	cp quickshell/manifest.json manifest.json
+	@echo "Synced manifest.json from quickshell/manifest.json"
+
 # Setup development environment
 setup: deps
 	@echo "Setting up development environment..."
@@ -102,6 +108,7 @@ help:
 	@echo "  uninstall   - Remove from system"
 	@echo "  deps        - Download dependencies"
 	@echo "  tidy        - Tidy go.mod file"
+	@echo "  manifest    - Sync root manifest.json with quickshell/manifest.json"
 	@echo "  setup       - Setup development environment"
 	@echo "  build-all   - Build for multiple platforms"
 	@echo "  run         - Build and run the widget"

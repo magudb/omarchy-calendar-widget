@@ -1,15 +1,25 @@
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*']
 
 permissions:
   contents: write
 
+# Packaging for Omarchy 4 / waybar: a single self-contained binary per
+# platform (the Quickshell QML and plugin manifest are go:embed-ed into
+# it), plus the plugin files at the archive root so the Omarchy plugin
+# can also be installed by hand without a git checkout:
+#   tar -xzf calendar-widget_X_linux_arm64.tar.gz
+#   cp -r calendar-widget_X_linux_arm64/manifest.json \
+#         calendar-widget_X_linux_arm64/quickshell \
+#         ~/.config/omarchy/plugins/magudb.calendar/
+# Tagging 'vX.Y.Z' and pushing the tag is all that is needed.
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,6 +30,22 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.0'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test
+        run: go test -count=1 ./...
+
+      - name: Build and verify embedded Quickshell assets
+        run: |
+          go build -o calendar-widget .
+          for marker in tooltipHovered StdioCollector magudb.calendar; do
+            if ! LC_ALL=C grep -qa "$marker" calendar-widget; then
+              echo "::error::Binary is missing embedded content marker: $marker"
+              exit 1
+            fi
+          done
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6

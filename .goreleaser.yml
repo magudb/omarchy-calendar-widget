@@ -32,6 +32,11 @@ archives:
     files:
       - README.md
       - LICENSE*
+      # Omarchy plugin files (layout mirrors ~/.config/omarchy/plugins/<id>/),
+      # so the plugin can be installed from a release archive without git.
+      - manifest.json
+      - quickshell/Widget.qml
+      - quickshell/manifest.json
 
 checksum:
   name_template: 'checksums.txt'

@@ -7,6 +7,35 @@ on:
     branches: [ master, main ]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.0'
+
+    - name: Format check
+      run: |
+        if [ -n "$(gofmt -s -l .)" ]; then
+          echo "The following files are not formatted:"
+          gofmt -s -l .
+          echo "Please run 'go fmt ./...' (and gofmt -s) to format your code."
+          exit 1
+        fi
+
+    - name: Lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        args: --timeout=5m
+
+    - name: Vet
+      run: go vet ./...
+
   test:
     runs-on: ubuntu-latest
 
@@ -29,24 +58,6 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
-    - name: Format check
-      run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-          echo "The following files are not formatted:"
-          gofmt -s -l .
-          echo "Please run 'go fmt ./...' to format your code."
-          exit 1
-        fi
-
-    - name: Lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-        args: --timeout=5m
-
-    - name: Vet
-      run: go vet ./...
-
     - name: Check root manifest is in sync
       run: |
         if ! diff -u quickshell/manifest.json manifest.json; then
@@ -56,10 +67,20 @@ jobs:
         fi
 
     - name: Test
-      run: go test -v ./...
+      run: go test -race -count=1 ./...
 
     - name: Build
-      run: go build -v ./...
-
-    - name: Build binary
       run: go build -o calendar-widget .
+
+    - name: Check binary embeds the Quickshell assets
+      run: |
+        # The release binary must be self-contained: the QML widget and
+        # plugin manifest are go:embed-ed, so a bare binary is enough to
+        # 'calendar-widget omarchy' install (no repository checkout).
+        for marker in tooltipHovered StdioCollector magudb.calendar; do
+          if ! LC_ALL=C grep -qa "$marker" calendar-widget; then
+            echo "::error::Built binary is missing embedded content marker: $marker"
+            exit 1
+          fi
+        done
+        echo "Binary embeds the Quickshell widget and plugin manifest."

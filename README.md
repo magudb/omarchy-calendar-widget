@@ -355,6 +355,37 @@ calendar-widget logout && calendar-widget setup
 go build -o calendar-widget
 ```
 
+### CI & Packaging
+
+- **CI** (`.github/workflows/ci.yml`) runs on pushes/PRs to `master`:
+  - `lint` — `gofmt -s` check, `golangci-lint`, `go vet`
+  - `test` — root/quickshell manifest sync check, `go test -race`, build,
+    and a self-containment check that the binary embeds the QML widget
+    and plugin manifest (so a bare release binary is enough for
+    `calendar-widget omarchy`)
+- **Releases** (`.github/workflows/release.yml`, GoReleaser): tag and push
+  to publish a release — no need to create anything in the GitHub UI:
+
+  ```bash
+  git tag v0.1.0
+  git push origin v0.1.0
+  ```
+
+  This produces a GitHub release with `calendar-widget_<ver>_<os>_<arch>.tar.gz`
+  for linux/darwin/windows (amd64, arm64). Each archive contains the
+  self-contained binary **plus** `manifest.json` and `quickshell/` so the
+  Omarchy plugin can be installed from the release without a git checkout:
+
+  ```bash
+  tar -xzf calendar-widget_0.1.0_linux_arm64.tar.gz
+  cd calendar-widget_0.1.0_linux_arm64
+  # install the binary, then either:
+  ./calendar-widget omarchy                  # QML module install
+  # or, manual plugin install:
+  mkdir -p ~/.config/omarchy/plugins/magudb.calendar
+  cp manifest.json quickshell ~/.config/omarchy/plugins/magudb.calendar/
+  ```
+
 ### Key Dependencies
 
 - **[Microsoft Graph SDK Go](https://github.com/microsoftgraph/msgraph-sdk-go)** - Microsoft 365 API access
